@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CẮT — Bàn cắt video trên trình duyệt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#111208;
+    --bg-panel:#191b10;
+    --bg-panel-2:#20220f;
+    --line:#33361c;
+    --line-soft:#24260f;
+    --amber:#e8a33d;
+    --amber-dim:#8a651f;
+    --red:#e5484d;
+    --green:#7fb069;
+    --text:#f2f0e6;
+    --text-dim:#93967f;
+    --text-faint:#5f6250;
+    --mono:'JetBrains Mono', monospace;
+    --sans:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, #1a1c0f 0%, var(--bg) 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:900px;margin:0 auto;}
+
+  /* Header — sprocket strip */
+  .sprocket-strip{
+    display:flex;
+    justify-content:space-between;
+    padding:0 2px;
+    margin-bottom:6px;
+  }
+  .sprocket-strip span{
+    width:9px;height:9px;
+    border:1.5px solid var(--line);
+    border-radius:2px;
+  }
+  header{
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:22px 4px;
+    margin-bottom:8px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  h1{
+    font-family:var(--mono);
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:2px;
+    margin:0;
+    color:var(--text);
+  }
+  h1 .dot{color:var(--red);}
+  .subtitle{
+    font-size:13px;
+    color:var(--text-dim);
+    font-family:var(--mono);
+    letter-spacing:0.3px;
+  }
+  .sprocket-strip.bottom{margin-top:6px;margin-bottom:36px;}
+
+  /* Panels */
+  .panel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:22px;
+    margin-bottom:18px;
+  }
+  .panel-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--amber);
+    text-transform:uppercase;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-label::after{
+    content:'';
+    flex:1;
+    height:1px;
+    background:var(--line);
+  }
+
+  /* Dropzone */
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:3px;
+    padding:44px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--amber-dim);
+    background:var(--bg-panel-2);
+  }
+  .dropzone .big{
+    font-family:var(--mono);
+    font-size:15px;
+    color:var(--text);
+    margin-bottom:6px;
+  }
+  .dropzone .small{
+    font-size:12px;
+    color:var(--text-faint);
+  }
+  input[type=file]{display:none;}
+
+  /* Video preview */
+  video{
+    width:100%;
+    display:block;
+    background:#000;
+    border-radius:2px;
+    border:1px solid var(--line);
+  }
+  .file-meta{
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-faint);
+    margin-top:8px;
+    letter-spacing:0.5px;
+  }
+
+  /* Timeline / film strip scrubber */
+  .timeline-block{margin-top:20px;}
+  .timeline{
+    position:relative;
+    height:52px;
+    background:
+      repeating-linear-gradient(90deg, var(--bg-panel-2) 0, var(--bg-panel-2) 6px, var(--bg) 6px, var(--bg) 8px);
+    border:1px solid var(--line);
+    border-radius:2px;
+    margin:10px 0 6px;
+    cursor:pointer;
+    overflow:hidden;
+  }
+  .timeline .range-fill{
+    position:absolute;
+    top:0;bottom:0;
+    background:rgba(232,163,61,0.16);
+    border-left:1px solid var(--amber);
+    border-right:1px solid var(--amber);
+  }
+  .timeline .playhead{
+    position:absolute;
+    top:0;bottom:0;
+    width:1px;
+    background:var(--red);
+  }
+  .handle{
+    position:absolute;
+    top:0;bottom:0;
+    width:11px;
+    margin-left:-5.5px;
+    background:var(--amber);
+    cursor:ew-resize;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .handle::before{
+    content:'';
+    width:2px;height:16px;
+    background:#111208;
+    border-radius:1px;
+  }
+  .handle.end{background:var(--amber);}
+  .timeline-labels{
+    display:flex;justify-content:space-between;
+    font-family:var(--mono);font-size:10px;color:var(--text-faint);
+    letter-spacing:0.5px;
+  }
+
+  /* Time readouts */
+  .tc-row{
+    display:flex;gap:12px;flex-wrap:wrap;
+    margin-top:18px;
+  }
+  .tc-field{
+    flex:1;min-width:140px;
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:10px 12px;
+  }
+  .tc-field label{
+    display:block;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .tc-field input{
+    width:100%;
+    background:transparent;
+    border:none;
+    color:var(--amber);
+    font-family:var(--mono);
+    font-size:18px;
+    letter-spacing:1px;
+    padding:0;
+  }
+  .tc-field input:focus{outline:none;}
+  .tc-field .grab{
+    margin-top:6px;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+    background:none;border:1px solid var(--line-soft);
+    border-radius:2px;padding:3px 7px;cursor:pointer;
+  }
+  .tc-field .grab:hover{border-color:var(--amber-dim);color:var(--amber);}
+  .tc-field.duration input{color:var(--text);}
+
+  /* Mode toggle */
+  .mode-row{
+    display:flex;gap:10px;margin-top:18px;
+    flex-wrap:wrap;
+  }
+  .mode-option{
+    flex:1;min-width:220px;
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:14px 16px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .mode-option:hover{border-color:var(--amber-dim);}
+  .mode-option.active{
+    border-color:var(--amber);
+    background:rgba(232,163,61,0.06);
+  }
+  .mode-option .title{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:1px;
+    color:var(--text);
+    margin-bottom:4px;
+  }
+  .mode-option.active .title{color:var(--amber);}
+  .mode-option .desc{
+    font-size:12px;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+
+  /* Action button */
+  .action-row{
+    display:flex;align-items:center;gap:16px;
+    margin-top:22px;flex-wrap:wrap;
+  }
+  button.cut-btn{
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    background:var(--amber);
+    color:#191b10;
+    border:none;
+    padding:14px 28px;
+    border-radius:2px;
+    cursor:pointer;
+    font-weight:700;
+    transition:transform .1s, background .15s;
+  }
+  button.cut-btn:hover:not(:disabled){background:#f0b354;}
+  button.cut-btn:active:not(:disabled){transform:scale(0.98);}
+  button.cut-btn:disabled{
+    background:var(--line);
+    color:var(--text-faint);
+    cursor:not-allowed;
+  }
+  .status-text{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text-dim);
+  }
+
+  /* Progress */
+  .progress-block{margin-top:18px;display:none;}
+  .progress-block.show{display:block;}
+  .progress-bar-outer{
+    height:6px;
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .progress-bar-inner{
+    height:100%;
+    width:0%;
+    background:var(--amber);
+    transition:width .2s;
+  }
+  .log-line{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-faint);
+    margin-top:8px;
+  }
+
+  /* Result */
+  .result-block{
+    display:none;
+    margin-top:20px;
+    padding:18px;
+    border:1px solid var(--green);
+    border-radius:2px;
+    background:rgba(127,176,105,0.06);
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:14px;
+  }
+  .result-block.show{display:flex;}
+  .result-block .info{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text);
+  }
+  .result-block .info .label{color:var(--green);letter-spacing:1.5px;}
+  a.download-btn{
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--green);
+    border:1px solid var(--green);
+    padding:10px 20px;
+    border-radius:2px;
+    text-decoration:none;
+    font-weight:700;
+  }
+  a.download-btn:hover{background:rgba(127,176,105,0.12);}
+
+  .note{
+    font-size:12px;
+    color:var(--text-faint);
+    line-height:1.6;
+    margin-top:14px;
+  }
+  .note b{color:var(--text-dim);}
+
+  footer{
+    text-align:center;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-faint);
+    margin-top:40px;
+    letter-spacing:1px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sprocket-strip">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <header>
+    <h1>CẮT<span class="dot">.</span></h1>
+    <div class="subtitle">BÀN CẮT VIDEO — CHẠY 100% TRONG TRÌNH DUYỆT</div>
+  </header>
+
+  <div class="panel">
+    <div class="panel-label">01 — Nạp phim</div>
+    <div class="dropzone" id="dropzone">
+      <div class="big">Kéo thả video vào đây, hoặc bấm để chọn file</div>
+      <div class="small">MP4, WebM, MOV… — video không rời khỏi máy bạn, mọi thứ xử lý tại chỗ</div>
+      <input type="file" id="fileInput" accept="video/*">
+    </div>
+    <div id="previewArea" style="display:none;margin-top:16px;">
+      <video id="videoPreview" controls></video>
+      <div class="file-meta">
+        <span id="fileName">—</span>
+        <span id="fileMeta">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="editPanel" style="display:none;">
+    <div class="panel-label">02 — Chọn đoạn cắt</div>
+
+    <div class="timeline-block">
+      <div class="timeline" id="timeline">
+        <div class="range-fill" id="rangeFill"></div>
+        <div class="playhead" id="playhead"></div>
+        <div class="handle" id="handleStart"></div>
+        <div class="handle end" id="handleEnd"></div>
+      </div>
+      <div class="timeline-labels">
+        <span>00:00:00.000</span>
+        <span id="totalDurLabel">00:00:00.000</span>
+      </div>
+    </div>
+
+    <div class="tc-row">
+      <div class="tc-field">
+        <label>Điểm bắt đầu</label>
+        <input type="text" id="startInput" value="00:00:00.000">
+        <button class="grab" id="grabStart">Lấy vị trí đang phát</button>
+      </div>
+      <div class="tc-field">
+        <label>Điểm kết thúc</label>
+        <input type="text" id="endInput" value="00:00:00.000">
+        <button class="grab" id="grabEnd">Lấy vị trí đang phát</button>
+      </div>
+      <div class="tc-field duration">
+        <label>Độ dài đoạn cắt</label>
+        <input type="text" id="durLabel" value="00:00:00.000" readonly>
+      </div>
+    </div>
+
+    <div class="mode-row">
+      <div class="mode-option active" id="modeCopy" data-mode="copy">
+        <div class="title">Cắt nhanh</div>
+        <div class="desc">Không nén lại — cực nhanh, giữ nguyên chất lượng gốc. Điểm cắt có thể lệch vài trăm mili-giây do phụ thuộc keyframe.</div>
+      </div>
+      <div class="mode-option" id="modeEncode" data-mode="encode">
+        <div class="title">Cắt chính xác</div>
+        <div class="desc">Nén lại video (H.264/AAC) — chậm hơn nhưng cắt đúng từng khung hình theo thời điểm bạn chọn.</div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="cut-btn" id="cutBtn">Cắt video</button>
+      <span class="status-text" id="statusText"></span>
+    </div>
+
+    <div class="progress-block" id="progressBlock">
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+      <div class="log-line" id="logLine">Đang khởi động bộ xử lý…</div>
+    </div>
+
+    <div class="result-block" id="resultBlock">
+      <div class="info"><span class="label">HOÀN TẤT ▸</span> <span id="resultMeta"></span></div>
+      <a class="download-btn" id="downloadBtn" download="video-cut.mp4">Tải video đã cắt</a>
+    </div>
+
+    <div class="note">
+      <b>Ghi chú:</b> lần chạy đầu tiên cần tải bộ xử lý video (~25MB) từ CDN, có thể mất chút thời gian tùy mạng. Với file rất lớn (trên khoảng 1–2GB) trình duyệt có thể hết bộ nhớ — nếu gặp lỗi, hãy thử chọn "Cắt nhanh" hoặc dùng file nhỏ hơn.
+    </div>
+  </div>
+
+  <div class="sprocket-strip bottom">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <footer>TỰ LƯU TRỮ — TỰ CHỦ — KHÔNG MÁY CHỦ</footer>
+</div>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+<script>
+(function(){
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  const ffmpeg = createFFmpeg({
+    log: false,
+    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+    progress: (p) => {
+      if(p.ratio >= 0 && p.ratio <= 1){
+        progressBar.style.width = (p.ratio*100).toFixed(0) + '%';
+        logLine.textContent = 'Đang xử lý… ' + (p.ratio*100).toFixed(0) + '%';
+      }
+    }
+  });
+  let ffmpegLoaded = false;
+
+  // Elements
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const previewArea = document.getElementById('previewArea');
+  const videoPreview = document.getElementById('videoPreview');
+  const fileName = document.getElementById('fileName');
+  const fileMeta = document.getElementById('fileMeta');
+  const editPanel = document.getElementById('editPanel');
+
+  const timeline = document.getElementById('timeline');
+  const rangeFill = document.getElementById('rangeFill');
+  const playhead = document.getElementById('playhead');
+  const handleStart = document.getElementById('handleStart');
+  const handleEnd = document.getElementById('handleEnd');
+  const totalDurLabel = document.getElementById('totalDurLabel');
+
+  const startInput = document.getElementById('startInput');
+  const endInput = document.getElementById('endInput');
+  const durLabel = document.getElementById('durLabel');
+  const grabStart = document.getElementById('grabStart');
+  const grabEnd = document.getElementById('grabEnd');
+
+  const modeCopy = document.getElementById('modeCopy');
+  const modeEncode = document.getElementById('modeEncode');
+  let cutMode = 'copy';
+
+  const cutBtn = document.getElementById('cutBtn');
+  const statusText = document.getElementById('statusText');
+  const progressBlock = document.getElementById('progressBlock');
+  const progressBar = document.getElementById('progressBar');
+  const logLine = document.getElementById('logLine');
+  const resultBlock = document.getElementById('resultBlock');
+  const resultMeta = document.getElementById('resultMeta');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  let currentFile = null;
+  let duration = 0;
+  let startTime = 0;
+  let endTime = 0;
+
+  // ---- helpers ----
+  function fmt(t){
+    if(!isFinite(t) || t < 0) t = 0;
+    const h = Math.floor(t/3600);
+    const m = Math.floor((t%3600)/60);
+    const s = Math.floor(t%60);
+    const ms = Math.round((t - Math.floor(t)) * 1000);
+    const p = (n,l) => String(n).padStart(l,'0');
+    return `${p(h,2)}:${p(m,2)}:${p(s,2)}.${p(ms,3)}`;
+  }
+  function parseTc(str){
+    const m = str.trim().match(/^(\d+):(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/);
+    if(!m) return null;
+    const h = parseInt(m[1],10), mi = parseInt(m[2],10), s = parseInt(m[3],10);
+    const ms = m[4] ? parseInt(m[4].padEnd(3,'0'),10) : 0;
+    return h*3600 + mi*60 + s + ms/1000;
+  }
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+  function updateTimelineUI(){
+    const sPct = duration ? (startTime/duration*100) : 0;
+    const ePct = duration ? (endTime/duration*100) : 0;
+    handleStart.style.left = sPct + '%';
+    handleEnd.style.left = ePct + '%';
+    rangeFill.style.left = sPct + '%';
+    rangeFill.style.width = (ePct - sPct) + '%';
+    startInput.value = fmt(startTime);
+    endInput.value = fmt(endTime);
+    durLabel.value = fmt(Math.max(0, endTime - startTime));
+  }
+  function updatePlayhead(){
+    const pct = duration ? (videoPreview.currentTime/duration*100) : 0;
+    playhead.style.left = pct + '%';
+  }
+
+  // ---- file load ----
+  function loadFile(file){
+    if(!file || !file.type.startsWith('video/')){
+      alert('Vui lòng chọn một file video.');
+      return;
+    }
+    currentFile = file;
+    const url = URL.createObjectURL(file);
+    videoPreview.src = url;
+    previewArea.style.display = 'block';
+    editPanel.style.display = 'block';
+    fileName.textContent = file.name;
+    fileMeta.textContent = (file.size/1024/1024).toFixed(1) + ' MB';
+    resultBlock.classList.remove('show');
+    progressBlock.classList.remove('show');
+    statusText.textContent = '';
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+  ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+    e.preventDefault(); dropzone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', e => {
+    if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  videoPreview.addEventListener('loadedmetadata', () => {
+    duration = videoPreview.duration;
+    startTime = 0;
+    endTime = duration;
+    totalDurLabel.textContent = fmt(duration);
+    updateTimelineUI();
+    updatePlayhead();
+  });
+  videoPreview.addEventListener('timeupdate', updatePlayhead);
+
+  // ---- timeline dragging ----
+  let dragging = null; // 'start' | 'end'
+  function timeFromEvent(clientX){
+    const rect = timeline.getBoundingClientRect();
+    const pct = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return pct * duration;
+  }
+  function startDrag(which){ return (e) => { dragging = which; e.preventDefault(); }; }
+  handleStart.addEventListener('mousedown', startDrag('start'));
+  handleEnd.addEventListener('mousedown', startDrag('end'));
+  handleStart.addEventListener('touchstart', startDrag('start'), {passive:true});
+  handleEnd.addEventListener('touchstart', startDrag('end'), {passive:true});
+
+  function onMove(clientX){
+    if(!dragging || !duration) return;
+    const t = timeFromEvent(clientX);
+    if(dragging === 'start'){
+      startTime = clamp(t, 0, endTime - 0.01);
+    } else {
+      endTime = clamp(t, startTime + 0.01, duration);
+    }
+    updateTimelineUI();
+  }
+  window.addEventListener('mousemove', e => onMove(e.clientX));
+  window.addEventListener('touchmove', e => { if(dragging && e.touches[0]) onMove(e.touches[0].clientX); }, {passive:true});
+  window.addEventListener('mouseup', () => dragging = null);
+  window.addEventListener('touchend', () => dragging = null);
+
+  timeline.addEventListener('click', (e) => {
+    if(!duration) return;
+    const t = timeFromEvent(e.clientX);
+    // move nearest handle
+    if(Math.abs(t-startTime) <= Math.abs(t-endTime)){
+      startTime = clamp(t, 0, endTime - 0.01);
+    } else {
+      endTime = clamp(t, startTime + 0.01, duration);
+    }
+    updateTimelineUI();
+  });
+
+  // ---- manual text inputs ----
+  startInput.addEventListener('change', () => {
+    const v = parseTc(startInput.value);
+    if(v === null){ updateTimelineUI(); return; }
+    startTime = clamp(v, 0, endTime - 0.01);
+    updateTimelineUI();
+  });
+  endInput.addEventListener('change', () => {
+    const v = parseTc(endInput.value);
+    if(v === null){ updateTimelineUI(); return; }
+    endTime = clamp(v, startTime + 0.01, duration);
+    updateTimelineUI();
+  });
+  grabStart.addEventListener('click', () => {
+    startTime = clamp(videoPreview.currentTime, 0, endTime - 0.01);
+    updateTimelineUI();
+  });
+  grabEnd.addEventListener('click', () => {
+    endTime = clamp(videoPreview.currentTime, startTime + 0.01, duration);
+    updateTimelineUI();
+  });
+
+  // ---- mode toggle ----
+  function setMode(m){
+    cutMode = m;
+    modeCopy.classList.toggle('active', m === 'copy');
+    modeEncode.classList.toggle('active', m === 'encode');
+  }
+  modeCopy.addEventListener('click', () => setMode('copy'));
+  modeEncode.addEventListener('click', () => setMode('encode'));
+
+  // ---- cutting ----
+  function extOf(name){
+    const m = name.match(/\.([a-zA-Z0-9]+)$/);
+    return m ? m[1].toLowerCase() : 'mp4';
+  }
+
+  cutBtn.addEventListener('click', async () => {
+    if(!currentFile) return;
+    if(endTime - startTime <= 0){
+      alert('Điểm kết thúc phải sau điểm bắt đầu.');
+      return;
+    }
+    cutBtn.disabled = true;
+    resultBlock.classList.remove('show');
+    progressBlock.classList.add('show');
+    progressBar.style.width = '0%';
+    statusText.textContent = '';
+
+    try {
+      if(!ffmpegLoaded){
+        logLine.textContent = 'Đang tải bộ xử lý video (chỉ lần đầu)…';
+        await ffmpeg.load();
+        ffmpegLoaded = true;
+      }
+
+      logLine.textContent = 'Đang nạp file vào bộ nhớ…';
+      const inExt = extOf(currentFile.name);
+      const inName = 'input.' + inExt;
+      const outName = 'output.mp4';
+      ffmpeg.FS('writeFile', inName, await fetchFile(currentFile));
+
+      const ss = startTime.toFixed(3);
+      const dur = (endTime - startTime).toFixed(3);
+
+      let args;
+      if(cutMode === 'copy'){
+        args = ['-ss', ss, '-i', inName, '-t', dur, '-c', 'copy', '-avoid_negative_ts', 'make_zero', outName];
+      } else {
+        args = ['-ss', ss, '-i', inName, '-t', dur, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', outName];
+      }
+
+      logLine.textContent = 'Đang cắt video…';
+      await ffmpeg.run(...args);
+
+      const data = ffmpeg.FS('readFile', outName);
+      const blob = new Blob([data.buffer], {type: 'video/mp4'});
+      const url = URL.createObjectURL(blob);
+
+      downloadBtn.href = url;
+      const baseName = currentFile.name.replace(/\.[^.]+$/, '');
+      downloadBtn.setAttribute('download', baseName + '-cat.mp4');
+      resultMeta.textContent = fmt(endTime-startTime) + ' — ' + (blob.size/1024/1024).toFixed(1) + ' MB';
+      resultBlock.classList.add('show');
+      progressBar.style.width = '100%';
+      logLine.textContent = 'Xong.';
+
+      // cleanup FS
+      try { ffmpeg.FS('unlink', inName); ffmpeg.FS('unlink', outName); } catch(e){}
+    } catch(err){
+      console.error(err);
+      statusText.textContent = 'Có lỗi xảy ra: ' + (err && err.message ? err.message : err);
+      logLine.textContent = 'Thất bại. Thử lại hoặc đổi sang chế độ "Cắt nhanh".';
+    } finally {
+      cutBtn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
