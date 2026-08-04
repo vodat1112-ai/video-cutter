@@ -1,0 +1,2 @@
+# Không cần thư viện Python nào ngoài thư viện chuẩn.
+# Yêu cầu duy nhất: cài đặt ffmpeg (https://ffmpeg.org/download.html) và có trong PATH.
